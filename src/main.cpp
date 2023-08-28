@@ -61,16 +61,6 @@ void loop()
     ESP_LOGV(TAG, "data recieved");
   }
 
-  uint8_t parameter[240];
-  uint8_t parameterlength = 240;
-  parameter[0] = 255 - i;
-  parameter[1] = i++;
-
-  nec920.sendData(0x13, i, parameter, parameterlength);
-  ESP_LOGV(TAG, "send:%02X", i);
-
-  delay(500);
-
   if (nec920.isWirelessModuleDead())
   {
     ESP_LOGV(TAG, "nec920 stopped");
@@ -79,4 +69,14 @@ void loop()
   {
     ESP_LOGV(TAG, "nec920 ok");
   }
+
+  uint8_t parameter[2];
+  uint8_t parameterlength = 2;
+  parameter[0] = 255 - i;
+  parameter[1] = i++;
+
+  nec920.sendData(0x13, i, parameter, parameterlength);
+  ESP_LOGV(TAG, "send:%02X", i);
+
+  delay(500);
 }
