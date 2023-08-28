@@ -69,5 +69,14 @@ void loop()
   nec920.sendData(0x13, i, parameter, parameterlength);
   ESP_LOGV(TAG, "send:%02X", i);
 
-  delay(1000);
+  delay(500);
+
+  if (nec920.isWirelessModuleDead())
+  {
+    ESP_LOGV(TAG, "nec920 stopped");
+  }
+  else
+  {
+    ESP_LOGV(TAG, "nec920 ok");
+  }
 }
