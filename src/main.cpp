@@ -3,6 +3,7 @@
 #include "SPICREATE.h"
 #include "S25FL512S.h"
 #include "ICM20948.h"
+#include "NEC920.hpp"
 
 #include "esp_log.h"
 
@@ -21,6 +22,8 @@ LPS pressureSensor;
 Flash flash;
 ICM imu;
 
+NEC920 nec920;
+
 void setup()
 {
   Serial.begin(115200);
@@ -36,49 +39,35 @@ void setup()
 
   ESP_LOGV(TAG, "whoAmI p:%d, IMU:%d, Flash:%d", pressureSensor.WhoAmI(), imu.WhoAmI(), 128);
 
-  uint8_t bf[256];
-  flash.read(0, bf);
-  for (int i = 0; i < 256; i++)
-  {
-    Serial.printf("%x,", bf[i]);
-  }
-  Serial.println();
+  uint8_t id[4] = {0xC2, 0xA0, 0x03, 0xB1};
+  nec920.setDstID(id);
 
-  for (int i = 0; i < 256; i++)
-  {
-    bf[i] = 255 - i;
-  }
+  Serial1.begin(115200, SERIAL_8N1, 18, 19);
+  nec920.setSerial(&Serial1);
 
-  flash.write(0, bf);
-
-  delay(1000);
-
-  flash.read(0, bf);
-  for (int i = 0; i < 256; i++)
-  {
-    Serial.printf("%x,", bf[i]);
-  }
-  Serial.println();
+  nec920.setRfConf(3, 37, 10, 5);
 }
+
+uint8_t i = 0;
 
 void loop()
 {
-  // uint8_t bf[3];
-  // pressureSensor.Get(bf);
-  // uint32_t marged = 0;
-  // for (int i = 0; i < 3; i++)
-  // {
-  //   marged += bf[i]<<(i*8);
-  //   printf("%d,\t",bf[i]);
-  // }
-  // printf("%d\r\n",marged);
+  uint8_t rxbff[254];
+  uint8_t rxlength = 0;
+  nec920.recieve();
+  rxlength = nec920.getRecievedData(rxbff);
+  if (rxlength > 0)
+  {
+    ESP_LOGV(TAG, "data recieved");
+  }
 
-  // delay(1000);
+  uint8_t parameter[240];
+  uint8_t parameterlength = 240;
+  parameter[0] = 255 - i;
+  parameter[1] = i++;
 
-  // if(Serial.available()){
-  //   uint8_t tmp = Serial.read();
-  //   if(tmp == 'r'){
-  //     ESP.restart();
-  //   }
-  // }
+  nec920.sendData(0x13, i, parameter, parameterlength);
+  ESP_LOGV(TAG, "send:%02X", i);
+
+  delay(1000);
 }
