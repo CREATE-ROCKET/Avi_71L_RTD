@@ -4,6 +4,7 @@
 #include "S25FL512S.h"
 #include "ICM20948.h"
 #include "NEC920.hpp"
+#include "RTD_PARAM.h"
 
 #include "esp_log.h"
 
@@ -39,13 +40,13 @@ void setup()
 
   ESP_LOGV(TAG, "whoAmI p:%d, IMU:%d, Flash:%d", pressureSensor.WhoAmI(), imu.WhoAmI(), 128);
 
-  uint8_t id[4] = {0xC2, 0xA0, 0x03, 0xB1};
+  uint8_t id[4] = {DST_1, DST_2, DST_3, DST_4};
   nec920.setDstID(id);
 
   Serial1.begin(115200, SERIAL_8N1, 18, 19);
   nec920.setSerial(&Serial1);
 
-  nec920.setRfConf(3, 37, 10, 5);
+  nec920.setRfConf(POWER, CHANNEL, RF_BAND, CS_MODE);
 }
 
 uint8_t i = 0;
