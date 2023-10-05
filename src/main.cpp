@@ -40,13 +40,13 @@ void setup()
 
   ESP_LOGV(TAG, "whoAmI p:%d, IMU:%d, Flash:%d", pressureSensor.WhoAmI(), imu.WhoAmI(), 128);
 
-  uint8_t id[4] = {DST_1, DST_2, DST_3, DST_4};
+  uint8_t id[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
   nec920.setDstID(id);
 
   Serial1.begin(115200, SERIAL_8N1, 18, 19);
   nec920.setSerial(&Serial1);
 
-  nec920.setRfConf(POWER, CHANNEL, RF_BAND, CS_MODE);
+  nec920.setRfConf(rtdRFparam::POWER, rtdRFparam::CHANNEL, rtdRFparam::RF_BAND, rtdRFparam::CS_MODE);
 }
 
 uint8_t i = 0;
