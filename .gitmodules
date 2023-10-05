@@ -1,3 +1,6 @@
 [submodule "lib"]
 	path = lib
 	url = https://github.com/CREATE-ROCKET/Avi_ESP_Libs.git
+[submodule "RFparam"]
+	path = RFparam
+	url = https://github.com/CREATE-ROCKET/Avi_71L_RTD_param
