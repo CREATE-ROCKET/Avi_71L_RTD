@@ -2,7 +2,7 @@
 #include "LPS25HB.h"
 #include "SPICREATE.h"
 #include "S25FL512S.h"
-#include "ICM20948.h"
+#include "SPI_devices/ICM20602.h"
 #include "NEC920.hpp"
 #include "../RFparam/RTD_PARAM.h"
 
@@ -53,6 +53,11 @@ uint8_t i = 0;
 
 void loop()
 {
+  int16_t imuData[6];
+  uint8_t imuRaw[14];
+  imu.Get(imuData, imuRaw);
+  ESP_LOGV(TAG, "IMU:%d, %d, %d, %d, %d, %d", imuData[0], imuData[1], imuData[2], imuData[3], imuData[4], imuData[5]);
+
   uint8_t rxbff[254];
   uint8_t rxlength = 0;
   nec920.recieve();
