@@ -43,6 +43,16 @@ void setup()
   uint8_t id[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
   nec920.setDstID(id);
 
+  pinMode(23, INPUT);
+  pinMode(22, OUTPUT);
+  digitalWrite(22, LOW);
+
+  pinMode(21, OUTPUT);
+  digitalWrite(21, HIGH);
+
+  pinMode(19, OUTPUT);
+  pinMode(18, OUTPUT);
+
   Serial1.begin(115200, SERIAL_8N1, 18, 19);
   nec920.setSerial(&Serial1);
 
