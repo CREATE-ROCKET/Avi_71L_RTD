@@ -8,15 +8,7 @@
 
 #include "esp_log.h"
 
-static const char *TAG = "INIT";
-
-#define SCK 27
-#define MISO 33
-#define MOSI 26
-#define CS_PRESSURE 13
-#define CS_FLASH 32
-#define CS_IMU 25
-#define SPIFREQ 5000000
+constexpr char *TAG = "INIT";
 
 SPICREATE::SPICreate spibus;
 LPS pressureSensor;
@@ -25,74 +17,53 @@ ICM imu;
 
 NEC920 nec920;
 
+namespace RTD_SPI_CONF
+{
+  constexpr uint8_t SCK = 27;
+  constexpr uint8_t MISO = 33;
+  constexpr uint8_t MOSI = 26;
+  constexpr uint8_t CS_PRESSURE = 13;
+  constexpr uint8_t CS_FLASH = 32;
+  constexpr uint8_t CS_IMU = 25;
+  constexpr uint32_t SPIFREQ = 5000000;
+}
+
+namespace RTD_W_PINOUT
+{
+  constexpr uint8_t LED = 14;
+  constexpr uint8_t pin920Rx = 18;
+  constexpr uint8_t pin920Tx = 19;
+  constexpr uint8_t pin920Reset = 21;
+  constexpr uint8_t pin920Wakeup = 22;
+  constexpr uint8_t pin920Mode = 23;
+}
+
 void setup()
 {
   Serial.begin(115200);
 
-  spibus.begin(VSPI, SCK, MISO, MOSI);
+  spibus.begin(VSPI, RTD_SPI_CONF::SCK, RTD_SPI_CONF::MISO, RTD_SPI_CONF::MOSI);
   ESP_LOGV(TAG, "SPIBUS");
-  pressureSensor.begin(&spibus, CS_PRESSURE, SPIFREQ);
+  pressureSensor.begin(&spibus, RTD_SPI_CONF::CS_PRESSURE, RTD_SPI_CONF::SPIFREQ);
   ESP_LOGV(TAG, "pressure");
-  flash.begin(&spibus, CS_FLASH, SPIFREQ);
+  flash.begin(&spibus, RTD_SPI_CONF::CS_FLASH, RTD_SPI_CONF::SPIFREQ);
   ESP_LOGV(TAG, "flash");
-  imu.begin(&spibus, CS_IMU, SPIFREQ);
+  imu.begin(&spibus, RTD_SPI_CONF::CS_IMU, RTD_SPI_CONF::SPIFREQ);
   ESP_LOGV(TAG, "IMU");
 
   ESP_LOGV(TAG, "whoAmI p:%d, IMU:%d, Flash:%d", pressureSensor.WhoAmI(), imu.WhoAmI(), 128);
 
-  uint8_t id[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-  nec920.setDstID(id);
+  uint8_t GNDid[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
 
-  pinMode(23, INPUT);
-  pinMode(22, OUTPUT);
-  digitalWrite(22, LOW);
-
-  pinMode(21, OUTPUT);
-  digitalWrite(21, HIGH);
-
-  pinMode(19, OUTPUT);
-  pinMode(18, OUTPUT);
-
-  Serial1.begin(115200, SERIAL_8N1, 18, 19);
-  nec920.setSerial(&Serial1);
-
+  ESP_LOGV(TAG, "NEC920 init start");
+  nec920.beginSerial(&Serial1, 115200, RTD_W_PINOUT::pin920Rx, RTD_W_PINOUT::pin920Tx);
+  ESP_LOGV(TAG, "NEC920 serial init");
+  nec920.setPin(RTD_W_PINOUT::pin920Reset, RTD_W_PINOUT::pin920Wakeup, RTD_W_PINOUT::pin920Mode);
+  ESP_LOGV(TAG, "NEC920 pin init");
   nec920.setRfConf(rtdRFparam::POWER, rtdRFparam::CHANNEL, rtdRFparam::RF_BAND, rtdRFparam::CS_MODE);
+  ESP_LOGV(TAG, "NEC920 set RF conf");
 }
-
-uint8_t i = 0;
 
 void loop()
 {
-  int16_t imuData[6];
-  uint8_t imuRaw[14];
-  imu.Get(imuData, imuRaw);
-  ESP_LOGV(TAG, "IMU:%d, %d, %d, %d, %d, %d", imuData[0], imuData[1], imuData[2], imuData[3], imuData[4], imuData[5]);
-
-  uint8_t rxbff[254];
-  uint8_t rxlength = 0;
-  nec920.recieve();
-  rxlength = nec920.getRecievedData(rxbff);
-  if (rxlength > 0)
-  {
-    ESP_LOGV(TAG, "data recieved");
-  }
-
-  if (nec920.isWirelessModuleDead())
-  {
-    ESP_LOGV(TAG, "nec920 stopped");
-  }
-  else
-  {
-    ESP_LOGV(TAG, "nec920 ok");
-  }
-
-  uint8_t parameter[2];
-  uint8_t parameterlength = 2;
-  parameter[0] = 255 - i;
-  parameter[1] = i++;
-
-  nec920.sendData(0x13, i, parameter, parameterlength);
-  ESP_LOGV(TAG, "send:%02X", i);
-
-  delay(500);
 }
