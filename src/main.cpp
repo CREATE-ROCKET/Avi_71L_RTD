@@ -60,10 +60,52 @@ void setup()
   ESP_LOGV(TAG, "NEC920 serial init");
   nec920.setPin(RTD_W_PINOUT::pin920Reset, RTD_W_PINOUT::pin920Wakeup, RTD_W_PINOUT::pin920Mode);
   ESP_LOGV(TAG, "NEC920 pin init");
-  nec920.setRfConf(rtdRFparam::POWER, rtdRFparam::CHANNEL, rtdRFparam::RF_BAND, rtdRFparam::CS_MODE);
-  ESP_LOGV(TAG, "NEC920 set RF conf");
 }
+
+bool booted = 0;
+uint8_t i = 0;
+uint8_t j = 71;
 
 void loop()
 {
+  if (i == 0)
+  {
+    if (nec920.isBootFinished(400000) == 0)
+    {
+      ESP_LOGV(TAG, "booting...");
+    }
+    else if (booted == 0)
+    {
+      booted = 1;
+      i++;
+      ESP_LOGV(TAG, "boot finished");
+      nec920.setRfConf(j++, rtdRFparam::POWER, rtdRFparam::CHANNEL, rtdRFparam::RF_BAND, rtdRFparam::CS_MODE);
+      ESP_LOGV(TAG, "NEC920 set RF conf");
+      delay(1000);
+    }
+  }
+
+  if (i == 1)
+  {
+    ESP_LOGV(TAG, "reboot start");
+    nec920.startReboot();
+    i++;
+    booted = 0;
+  }
+
+  if (i == 2)
+  {
+
+    if (nec920.doReboot(100000))
+    {
+      ESP_LOGV(TAG, "rebooting...");
+    }
+    else
+    {
+      ESP_LOGV(TAG, "reboot finished");
+      i = 0;
+    }
+  }
+
+  delay(10);
 }
