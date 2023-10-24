@@ -98,6 +98,219 @@ recieve(HardwareSerial &SER, rxBff &rx)
   return false;
 }
 
+namespace LOGGING
+{
+  uint32_t latestFlashPage = 0;
+  uint8_t isFlashErased = 0;  // 1:Erased 0:not Erased
+  uint8_t isLoggingGoing = 0; // 1:Going 0:not Going
+
+  uint8_t wirelessDatasetWaitingSend[174];
+  uint8_t isDatainWirelessDatasetWaitingSend = 0;
+  xTaskHandle sendWirelessmoduleHandle;
+
+  IRAM_ATTR void sendWirelessmodule(void *parameters)
+  {
+    for (;;)
+    {
+      portTickType xLastWakeTime = xTaskGetTickCount();
+      if (isDatainWirelessDatasetWaitingSend)
+      {
+        uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
+        nec920.sendTxCmd(0x13, 0x71, dstID, wirelessDatasetWaitingSend, 174);
+        isDatainWirelessDatasetWaitingSend = 0;
+      }
+
+      vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_PERIOD_MS);
+    }
+  }
+
+  uint32_t wirelessDatasetIndex = 0;
+  uint8_t wirelessDataset[174];
+  uint8_t flashDatasetIndex = 0;
+  uint8_t flashDataset[256];
+  TaskHandle_t LoggingHandle;
+
+  int16_t openRate = -300;
+  int32_t voltage[3] = {7000, 7000, 7000};
+
+  IRAM_ATTR void logging(void *parameters)
+  {
+    uint8_t loggingIndex = 0;
+    uint32_t lpsDataGetTime = 0;
+    uint8_t lpsData[3];
+    portTickType xLastWakeTime = xTaskGetTickCount();
+    for (;;)
+    {
+      uint32_t startTime = micros();
+      loggingIndex++;
+      // -------------------------------SPIセンサ通信開始--------------------------------
+      int16_t imuData[6];
+      uint32_t imuDataGetTime = micros();
+      imu.Get(imuData);
+
+      // loggingIndex == 38の時，lpsの値を取得
+      if (loggingIndex == 38)
+      {
+        lpsDataGetTime = micros();
+        pressureSensor.Get(lpsData);
+      }
+      // -------------------------------SPIセンサ通信終了--------------------------------
+
+      // -------------------------------UART送信開始--------------------------------
+      if (loggingIndex == 1)
+      {
+        // loggingIndex == 0の時，バルブ基板に開栓率調査要求
+        uint8_t payload = 0xFF;
+        uint8_t txPacket[5];
+        GseCom::makePacket(txPacket, 0xF0, &payload, 1);
+        VALVE_PINOUT::SER_VALVE.write(txPacket, 5);
+        // loggingIndex == 0の時，PMBに電圧調査要求
+        // -------------------------------------------------PMB電圧調査要求かけ！！！！！-------------------------------------------------
+      }
+      // -------------------------------UART送信終了--------------------------------
+
+      // -------------------------------flashのデータ作成開始--------------------------------
+      // flashのデータセットのヘッダ初期化 // loggingIndex == 1,11,21,31 で実行
+      if (loggingIndex % 10 == 1)
+      {
+        flashDatasetIndex = 0;
+        flashDataset[flashDatasetIndex++] = 0x40; // header
+      }
+      // flashのデータセットにimuの生データとタイムスタンプを追加
+      for (int i = 0; i < 4; i++)
+      {
+        flashDataset[flashDatasetIndex++] = imuDataGetTime >> (8 * i);
+      }
+      for (int i = 0; i < 6; i++)
+      {
+        flashDataset[flashDatasetIndex++] = imuData[i] & 0xFF;
+        flashDataset[flashDatasetIndex++] = imuData[i] >> 8;
+      }
+      // loggingIndex == 40の時，lpsの値を追加，開栓率，電圧を追加
+      if (loggingIndex == 40)
+      {
+        for (int i = 0; i < 4; i++)
+        {
+          flashDataset[flashDatasetIndex++] = lpsDataGetTime >> (8 * i);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+          flashDataset[flashDatasetIndex++] = lpsData[i];
+        }
+        flashDataset[flashDatasetIndex++] = openRate & 0xFF;
+        flashDataset[flashDatasetIndex++] = openRate >> 8;
+        for (int i = 0; i < 3; i++)
+        {
+          for (int j = 0; j < 4; j++)
+          {
+            flashDataset[flashDatasetIndex++] = voltage[i] >> (8 * j);
+          }
+        }
+      }
+      // loggingIndex == 10,20,30,40 で空きを0xEE埋めし，flashのデータセットをflashに書き込み
+      if (loggingIndex % 10 == 0)
+      {
+        for (int i = flashDatasetIndex; i < 256; i++)
+        {
+          flashDataset[i] = 0xEE;
+        }
+        flash.write(latestFlashPage << 8, flashDataset);
+        latestFlashPage++;
+      }
+      // -------------------------------flashのデータ作成終了--------------------------------
+
+      // -------------------------------無線機用データ作成開始--------------------------------
+      // 無線機用データセットのヘッダ初期化
+      if (loggingIndex == 1)
+      {
+        wirelessDatasetIndex = 0;
+        wirelessDataset[wirelessDatasetIndex++] = 0x40; // header
+      }
+      if ((loggingIndex % 5) == 1) // loggingIndex == 1,6,11,16,21,26,31,36 で実行
+      {
+        float quaternion[4] = {3.14, 3.14, 3.14, 3.14}; // -------------------------------------------------計算を行え！！！-------------------------------------------------
+
+        // 無線機用データセットにタイムスタンプの下位とクオータニオンを追加
+        for (int i = 0; i < 4; i++)
+        {
+          wirelessDataset[wirelessDatasetIndex++] = imuDataGetTime >> (8 * i);
+        }
+        for (int i = 0; i < 4; i++)
+        {
+          memcpy(&wirelessDataset[wirelessDatasetIndex], &quaternion[i], sizeof(float));
+          wirelessDatasetIndex += 4;
+        }
+      }
+
+      // 無線機用データセットにlps，開栓率，電圧を追加，送信
+      if (loggingIndex == 39)
+      {
+        for (int i = 0; i < 4; i++)
+        {
+          wirelessDataset[wirelessDatasetIndex++] = lpsDataGetTime >> (8 * i);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+          wirelessDataset[wirelessDatasetIndex++] = lpsData[i];
+        }
+        for (int i = 0; i < 2; i++)
+        {
+          wirelessDataset[wirelessDatasetIndex++] = openRate >> (8 * i);
+        }
+        for (int i = 1; i < 3; i++)
+        {
+          for (int j = 0; j < 2; j++)
+          {
+            wirelessDataset[wirelessDatasetIndex++] = voltage[i] >> (8 * j);
+          }
+        }
+        // -------------------------------------------------無線モジュールへ送信を行え-------------------------------------------------
+        memcpy(wirelessDatasetWaitingSend, wirelessDataset, 174);
+        isDatainWirelessDatasetWaitingSend = 1;
+      }
+      // -------------------------------無線機用データ作成終了--------------------------------
+      // ESP_LOGV(TAG, "logging time:%d us", micros() - startTime);
+
+      // if (loggingIndex % 10 == 0)
+      // {
+      //   Serial.printf("flashDataset\r\n");
+      //   for (int i = 0; i < 256; i++)
+      //   {
+      //     Serial.printf("%02X,", flashDataset[i]);
+      //   }
+      //   Serial.println();
+      // }
+
+      // if (loggingIndex == 40)
+      // {
+      //   Serial.printf("wirelessDataset\r\n");
+      //   for (int i = 0; i < 174; i++)
+      //   {
+      //     Serial.printf("%02X,", wirelessDataset[i]);
+      //   }
+      //   Serial.println();
+      // }
+      // Serial.flush();
+
+      if (latestFlashPage >= 0x8000000)
+      {
+        LOGGING::isLoggingGoing = 0;
+        vTaskDelete(LOGGING::sendWirelessmoduleHandle);
+        vTaskDelete(LOGGING::LoggingHandle);
+      }
+
+      if (loggingIndex == 40)
+      {
+        loggingIndex = 0;
+        // vTaskDelete(sendWirelessmoduleHandle);
+        // vTaskDelete(LoggingHandle);
+      }
+
+      vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_PERIOD_MS);
+    }
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -121,6 +334,9 @@ void setup()
   ESP_LOGV(TAG, "NEC920 serial init");
   nec920.setPin(RTD_W_PINOUT::pin920Reset, RTD_W_PINOUT::pin920Wakeup, RTD_W_PINOUT::pin920Mode);
   ESP_LOGV(TAG, "NEC920 pin init");
+
+  delay(400);
+  nec920.setRfConf(0x44, rtdRFparam::POWER, rtdRFparam::CHANNEL, rtdRFparam::RF_BAND, rtdRFparam::CS_MODE);
 }
 
 void loop()
@@ -140,11 +356,23 @@ void loop()
       if (rxPayload[0] == 0x00)
       {
         // flight mode
+        if (LOGGING::isLoggingGoing == 0)
+        {
+          LOGGING::isLoggingGoing = 1;
+          xTaskCreatePinnedToCore(LOGGING::sendWirelessmodule, "send", 4096, NULL, 1, &LOGGING::sendWirelessmoduleHandle, 0);
+          xTaskCreatePinnedToCore(LOGGING::logging, "logging", 4096, NULL, 1, &LOGGING::LoggingHandle, 1);
+        }
         txPayload = 0x40;
       }
       else if (rxPayload[0] == 0x01)
       {
         // sleep mode
+        if (LOGGING::isLoggingGoing == 1)
+        {
+          vTaskDelete(LOGGING::sendWirelessmoduleHandle);
+          vTaskDelete(LOGGING::LoggingHandle);
+          LOGGING::isLoggingGoing = 0;
+        }
         txPayload = 0x41;
       }
       else if (rxPayload[0] == 0x05)
@@ -159,9 +387,33 @@ void loop()
       {
         // delete mode delete start
         flash.erase();
+        LOGGING::latestFlashPage = 0;
         txPayload = 0x46;
         GseCom::makePacket(txPacket, 0x61, &txPayload, 1);
         VALVE_PINOUT::SER_VALVE.write(txPacket, 5);
+      }
+    }
+
+    if (tmpCmdId == 0xF0)
+    {
+      LOGGING::openRate = ValveRxBff.data[4] + ValveRxBff.data[5] << 8;
+    }
+  }
+
+  if (Serial.available())
+  {
+    uint8_t tmp = Serial.read();
+    if (tmp == 'r')
+    {
+      for (int i = 0; i < 100; i++)
+      {
+        uint8_t tmpArr[256];
+        flash.read(i << 8, tmpArr);
+        for (int j = 0; j < 256; j++)
+        {
+          Serial.printf("%02X,", tmpArr[j]);
+        }
+        Serial.println();
       }
     }
   }
