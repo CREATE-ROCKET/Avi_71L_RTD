@@ -8,6 +8,7 @@
 #include "../../../Avi_71L_valveSystem/communication/gseCom.hpp"
 #include "PMB/PMBCom.h"
 #include "PMB/SLIP.h"
+#include "Quarternion.h"
 
 #include "esp_log.h"
 
@@ -28,7 +29,7 @@ namespace RTD_SPI_CONF
   constexpr uint8_t CS_PRESSURE = 13;
   constexpr uint8_t CS_FLASH = 32;
   constexpr uint8_t CS_IMU = 25;
-  constexpr uint32_t SPIFREQ = 5000000;
+  constexpr uint32_t SPIFREQ = 4000000;
 }
 
 namespace RTD_W_PINOUT
@@ -66,6 +67,8 @@ rxBff ValveRxBff;
 
 PMBCOM pmb;
 SLIP slip;
+
+Quarternion q4;
 
 /** 受信用関数，パケット受信完了したらtrueを返す*/
 IRAM_ATTR bool
@@ -151,6 +154,7 @@ namespace LOGGING
       int16_t imuData[6];
       uint32_t imuDataGetTime = micros();
       imu.Get(imuData);
+      q4.Calc(imuData);
 
       // loggingIndex == 38の時，lpsの値を取得
       if (loggingIndex == 38)
@@ -168,8 +172,7 @@ namespace LOGGING
         uint8_t txPacket[5];
         GseCom::makePacket(txPacket, 0xF0, &payload, 1);
         VALVE_PINOUT::SER_VALVE.write(txPacket, 5);
-        // loggingIndex == 0の時，PMBに電圧調査要求
-        // -------------------------------------------------PMB電圧調査要求かけ！！！！！-------------------------------------------------
+        // loggingIndex == 0の時，PMBに電圧調査要求はやめた
       }
       // -------------------------------UART送信終了--------------------------------
 
@@ -232,8 +235,6 @@ namespace LOGGING
       }
       if ((loggingIndex % 5) == 1) // loggingIndex == 1,6,11,16,21,26,31,36 で実行
       {
-        float quaternion[4] = {3.14, 3.14, 3.14, 3.14}; // -------------------------------------------------計算を行え！！！-------------------------------------------------
-
         // 無線機用データセットにタイムスタンプの下位とクオータニオンを追加
         for (int i = 0; i < 4; i++)
         {
@@ -241,7 +242,7 @@ namespace LOGGING
         }
         for (int i = 0; i < 4; i++)
         {
-          memcpy(&wirelessDataset[wirelessDatasetIndex], &quaternion[i], sizeof(float));
+          memcpy(&wirelessDataset[wirelessDatasetIndex], &q4.q[i], sizeof(float));
           wirelessDatasetIndex += 4;
         }
       }
@@ -296,8 +297,9 @@ namespace LOGGING
       // }
       // Serial.flush();
 
-      if (latestFlashPage >= 0x8000000)
+      if (latestFlashPage >= 0x10000)
       {
+        delay(100);
         LOGGING::isLoggingGoing = 0;
         vTaskDelete(LOGGING::sendWirelessmoduleHandle);
         vTaskDelete(LOGGING::LoggingHandle);
@@ -321,23 +323,23 @@ void setup()
   VALVE_PINOUT::SER_VALVE.begin(115200, SERIAL_8N1, VALVE_PINOUT::SER_VALVE_RX, VALVE_PINOUT::SER_VALVE_TX);
 
   spibus.begin(VSPI, RTD_SPI_CONF::SCK, RTD_SPI_CONF::MISO, RTD_SPI_CONF::MOSI);
-  ESP_LOGV(TAG, "SPIBUS");
+  // ESP_LOGV(TAG, "SPIBUS");
   pressureSensor.begin(&spibus, RTD_SPI_CONF::CS_PRESSURE, RTD_SPI_CONF::SPIFREQ);
-  ESP_LOGV(TAG, "pressure");
+  // ESP_LOGV(TAG, "pressure");
   flash.begin(&spibus, RTD_SPI_CONF::CS_FLASH, RTD_SPI_CONF::SPIFREQ);
-  ESP_LOGV(TAG, "flash");
+  // ESP_LOGV(TAG, "flash");
   imu.begin(&spibus, RTD_SPI_CONF::CS_IMU, RTD_SPI_CONF::SPIFREQ);
-  ESP_LOGV(TAG, "IMU");
+  // ESP_LOGV(TAG, "IMU");
 
-  ESP_LOGV(TAG, "whoAmI p:%d, IMU:%d, Flash:%d", pressureSensor.WhoAmI(), imu.WhoAmI(), 128);
+  // ESP_LOGV(TAG, "whoAmI p:%d, IMU:%d, Flash:%d", pressureSensor.WhoAmI(), imu.WhoAmI(), 128);
 
   uint8_t GNDid[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
 
-  ESP_LOGV(TAG, "NEC920 init start");
+  // ESP_LOGV(TAG, "NEC920 init start");
   nec920.beginSerial(&Serial1, 115200, RTD_W_PINOUT::pin920Rx, RTD_W_PINOUT::pin920Tx);
-  ESP_LOGV(TAG, "NEC920 serial init");
+  // ESP_LOGV(TAG, "NEC920 serial init");
   nec920.setPin(RTD_W_PINOUT::pin920Reset, RTD_W_PINOUT::pin920Wakeup, RTD_W_PINOUT::pin920Mode);
-  ESP_LOGV(TAG, "NEC920 pin init");
+  // ESP_LOGV(TAG, "NEC920 pin init");
 
   delay(400);
   nec920.setRfConf(0x44, rtdRFparam::POWER, rtdRFparam::CHANNEL, rtdRFparam::RF_BAND, rtdRFparam::CS_MODE);
@@ -365,6 +367,25 @@ void loop()
         // flight mode
         if (LOGGING::isLoggingGoing == 0)
         {
+          // quaternion初期化
+          q4.Init(1, 0, 0, 0, 0.001);
+          int32_t gyro_drift_raw[3] = {0, 0, 0};
+          float gyro_drift[3] = {0, 0, 0};
+          for (int i = 0; i < 1000; i++)
+          {
+            int16_t arr[6];
+            imu.Get(arr);
+            gyro_drift_raw[0] += arr[3];
+            gyro_drift_raw[1] += arr[4];
+            gyro_drift_raw[2] += arr[5];
+            delay(1);
+          }
+          for (int i = 0; i < 3; i++)
+          {
+            gyro_drift[i] = (float)gyro_drift_raw[i] / 1000;
+          }
+          q4.Drift(gyro_drift);
+
           LOGGING::isLoggingGoing = 1;
           xTaskCreatePinnedToCore(LOGGING::sendWirelessmodule, "send", 4096, NULL, 1, &LOGGING::sendWirelessmoduleHandle, 0);
           xTaskCreatePinnedToCore(LOGGING::logging, "logging", 4096, NULL, 1, &LOGGING::LoggingHandle, 1);
@@ -376,6 +397,7 @@ void loop()
         // sleep mode
         if (LOGGING::isLoggingGoing == 1)
         {
+          delay(100);
           vTaskDelete(LOGGING::sendWirelessmoduleHandle);
           vTaskDelete(LOGGING::LoggingHandle);
           LOGGING::isLoggingGoing = 0;
@@ -405,25 +427,36 @@ void loop()
     {
       LOGGING::openRate = ValveRxBff.data[4] + ValveRxBff.data[5] << 8;
     }
-  }
 
-  if (Serial.available())
-  {
-    uint8_t tmp = Serial.read();
-    if (tmp == 'r')
+    if (tmpCmdId == 0xAA)
     {
-      for (int i = 0; i < 100; i++)
+      // read mode
+      for (uint32_t i = 0; i < 0x10010; i++)
       {
-        uint8_t tmpArr[256];
-        flash.read(i << 8, tmpArr);
-        for (int j = 0; j < 256; j++)
-        {
-          Serial.printf("%02X,", tmpArr[j]);
-        }
-        Serial.println();
+        uint8_t data[256];
+        flash.read(i << 8, data);
+        VALVE_PINOUT::SER_VALVE.write(data, 256);
       }
     }
   }
+
+  // if (Serial.available())
+  // {
+  //   uint8_t tmp = Serial.read();
+  //   if (tmp == 'r')
+  //   {
+  //     for (int i = 0; i < 100; i++)
+  //     {
+  //       uint8_t tmpArr[256];
+  //       flash.read(i << 8, tmpArr);
+  //       for (int j = 0; j < 256; j++)
+  //       {
+  //         Serial.printf("%02X,", tmpArr[j]);
+  //       }
+  //       Serial.println();
+  //     }
+  //   }
+  // }
 
   if (!LOGGING::isLoggingGoing)
   {
