@@ -6,6 +6,8 @@
 #include "NEC920.hpp"
 #include "../RFparam/RTD_PARAM.h"
 #include "../../../Avi_71L_valveSystem/communication/gseCom.hpp"
+#include "PMB/PMBCom.h"
+#include "PMB/SLIP.h"
 
 #include "esp_log.h"
 
@@ -62,6 +64,9 @@ public:
 };
 rxBff ValveRxBff;
 
+PMBCOM pmb;
+SLIP slip;
+
 /** 受信用関数，パケット受信完了したらtrueを返す*/
 IRAM_ATTR bool
 recieve(HardwareSerial &SER, rxBff &rx)
@@ -104,7 +109,7 @@ namespace LOGGING
   uint8_t isFlashErased = 0;  // 1:Erased 0:not Erased
   uint8_t isLoggingGoing = 0; // 1:Going 0:not Going
 
-  uint8_t wirelessDatasetWaitingSend[174];
+  uint8_t wirelessDatasetWaitingSend[170];
   uint8_t isDatainWirelessDatasetWaitingSend = 0;
   xTaskHandle sendWirelessmoduleHandle;
 
@@ -131,7 +136,6 @@ namespace LOGGING
   TaskHandle_t LoggingHandle;
 
   int16_t openRate = -300;
-  int32_t voltage[3] = {7000, 7000, 7000};
 
   IRAM_ATTR void logging(void *parameters)
   {
@@ -199,13 +203,13 @@ namespace LOGGING
         }
         flashDataset[flashDatasetIndex++] = openRate & 0xFF;
         flashDataset[flashDatasetIndex++] = openRate >> 8;
-        for (int i = 0; i < 3; i++)
-        {
-          for (int j = 0; j < 4; j++)
-          {
-            flashDataset[flashDatasetIndex++] = voltage[i] >> (8 * j);
-          }
-        }
+        // for (int i = 0; i < 3; i++)
+        // {
+        //   for (int j = 0; j < 4; j++)
+        //   {
+        //     flashDataset[flashDatasetIndex++] = voltage[i] >> (8 * j);
+        //   }
+        // }
       }
       // loggingIndex == 10,20,30,40 で空きを0xEE埋めし，flashのデータセットをflashに書き込み
       if (loggingIndex % 10 == 0)
@@ -257,15 +261,15 @@ namespace LOGGING
         {
           wirelessDataset[wirelessDatasetIndex++] = openRate >> (8 * i);
         }
-        for (int i = 1; i < 3; i++)
-        {
-          for (int j = 0; j < 2; j++)
-          {
-            wirelessDataset[wirelessDatasetIndex++] = voltage[i] >> (8 * j);
-          }
-        }
+        // for (int i = 1; i < 3; i++)
+        // {
+        //   for (int j = 0; j < 2; j++)
+        //   {
+        //     wirelessDataset[wirelessDatasetIndex++] = voltage[i] >> (8 * j);
+        //   }
+        // }
         // -------------------------------------------------無線モジュールへ送信を行え-------------------------------------------------
-        memcpy(wirelessDatasetWaitingSend, wirelessDataset, 174);
+        memcpy(wirelessDatasetWaitingSend, wirelessDataset, 170);
         isDatainWirelessDatasetWaitingSend = 1;
       }
       // -------------------------------無線機用データ作成終了--------------------------------
@@ -313,7 +317,7 @@ namespace LOGGING
 
 void setup()
 {
-  Serial.begin(115200);
+  PWR_PINOUT::SER_PWR.begin(115200, SERIAL_8N1, PWR_PINOUT::SER_PWR_RX, PWR_PINOUT::SER_PWR_TX);
   VALVE_PINOUT::SER_VALVE.begin(115200, SERIAL_8N1, VALVE_PINOUT::SER_VALVE_RX, VALVE_PINOUT::SER_VALVE_TX);
 
   spibus.begin(VSPI, RTD_SPI_CONF::SCK, RTD_SPI_CONF::MISO, RTD_SPI_CONF::MOSI);
@@ -337,6 +341,9 @@ void setup()
 
   delay(400);
   nec920.setRfConf(0x44, rtdRFparam::POWER, rtdRFparam::CHANNEL, rtdRFparam::RF_BAND, rtdRFparam::CS_MODE);
+
+  slip.begin(&PWR_PINOUT::SER_PWR);
+  pmb.begin(&slip);
 }
 
 void loop()
@@ -416,6 +423,47 @@ void loop()
         Serial.println();
       }
     }
+  }
+
+  if (!LOGGING::isLoggingGoing)
+  {
+    // downlink voltage data
+    pmb.request(PMBCMD_ALL);
+    delay(100);
+    if (pmb.Get())
+    {
+      uint8_t payLoad[9];
+      for (int i = 0; i < 3; i++)
+      {
+        for (int j = 0; j < 3; j++)
+        {
+          payLoad[i * 3 + j] = pmb.voltage[i] >> (8 * j);
+        }
+      }
+      uint8_t Packet[13];
+      GseCom::makePacket(Packet, 0x51, payLoad, 9);
+      VALVE_PINOUT::SER_VALVE.write(Packet, 13);
+
+      uint8_t wirelessPayload[10];
+      wirelessPayload[0] = 0x51;
+      for (int i = 0; i < 9; i++)
+      {
+        wirelessPayload[i + 1] = payLoad[i];
+      }
+      uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
+      nec920.sendTxCmd(0x13, 0x71, dstID, wirelessPayload, 10);
+    }
+    else
+    {
+      uint8_t dummy[1] = {0x51};
+      uint8_t Packet[5];
+      GseCom::makePacket(Packet, 0x51, dummy, 1);
+      VALVE_PINOUT::SER_VALVE.write(Packet, 5);
+
+      uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
+      nec920.sendTxCmd(0x13, 0x71, dstID, dummy, 1);
+    }
+    delay(900);
   }
 
   // if (i == 0)
