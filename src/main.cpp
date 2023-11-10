@@ -349,6 +349,9 @@ void setup()
   pmb.begin(&slip);
 }
 
+uint32_t pmbRequestTime = 0;
+uint8_t isRequesting = 0;
+
 void loop()
 {
   // バルブ基板からの受信に対するコマンド処理系
@@ -459,45 +462,63 @@ void loop()
   //   }
   // }
 
+  // PMBにリクエストを発行，1秒後にデータを取得，4秒間は何もしない
+
   if (!LOGGING::isLoggingGoing)
   {
-    // downlink voltage data
-    pmb.request(PMBCMD_ALL);
-    delay(100);
-    if (pmb.Get())
+    if (isRequesting == 0)
     {
-      uint8_t payLoad[9];
-      for (int i = 0; i < 3; i++)
+      pmb.request(PMBCMD_ALL);
+      pmbRequestTime = millis();
+      isRequesting = 1;
+    }
+    if (isRequesting == 1)
+    {
+      if (millis() - pmbRequestTime > 1000)
       {
-        for (int j = 0; j < 3; j++)
+        isRequesting = 2;
+        if (pmb.Get())
         {
-          payLoad[i * 3 + j] = pmb.voltage[i] >> (8 * j);
+          uint8_t payLoad[9];
+          for (int i = 0; i < 3; i++)
+          {
+            for (int j = 0; j < 3; j++)
+            {
+              payLoad[i * 3 + j] = pmb.voltage[i] >> (8 * j);
+            }
+          }
+          uint8_t Packet[13];
+          GseCom::makePacket(Packet, 0x51, payLoad, 9);
+          VALVE_PINOUT::SER_VALVE.write(Packet, 13);
+
+          uint8_t wirelessPayload[10];
+          wirelessPayload[0] = 0x51;
+          for (int i = 0; i < 9; i++)
+          {
+            wirelessPayload[i + 1] = payLoad[i];
+          }
+          uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
+          nec920.sendTxCmd(0x13, 0x71, dstID, wirelessPayload, 10);
+        }
+        else
+        {
+          uint8_t dummy[1] = {0x51};
+          uint8_t Packet[5];
+          GseCom::makePacket(Packet, 0x51, dummy, 1);
+          VALVE_PINOUT::SER_VALVE.write(Packet, 5);
+
+          uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
+          nec920.sendTxCmd(0x13, 0x71, dstID, dummy, 1);
         }
       }
-      uint8_t Packet[13];
-      GseCom::makePacket(Packet, 0x51, payLoad, 9);
-      VALVE_PINOUT::SER_VALVE.write(Packet, 13);
-
-      uint8_t wirelessPayload[10];
-      wirelessPayload[0] = 0x51;
-      for (int i = 0; i < 9; i++)
-      {
-        wirelessPayload[i + 1] = payLoad[i];
-      }
-      uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-      nec920.sendTxCmd(0x13, 0x71, dstID, wirelessPayload, 10);
     }
-    else
+    if (isRequesting == 2)
     {
-      uint8_t dummy[1] = {0x51};
-      uint8_t Packet[5];
-      GseCom::makePacket(Packet, 0x51, dummy, 1);
-      VALVE_PINOUT::SER_VALVE.write(Packet, 5);
-
-      uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-      nec920.sendTxCmd(0x13, 0x71, dstID, dummy, 1);
+      if (millis() - pmbRequestTime > 5000)
+      {
+        isRequesting = 0;
+      }
     }
-    delay(900);
   }
 
   // if (i == 0)
