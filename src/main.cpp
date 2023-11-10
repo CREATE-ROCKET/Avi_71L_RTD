@@ -247,9 +247,10 @@ namespace LOGGING
         }
       }
 
-      // 無線機用データセットにlps，開栓率，電圧を追加，送信
+      // 無線機用データセットにlps，開栓率，電圧を追加，送信，ヘッダを変更
       if (loggingIndex == 39)
       {
+        wirelessDataset[0] = 0x41; // header
         for (int i = 0; i < 4; i++)
         {
           wirelessDataset[wirelessDatasetIndex++] = lpsDataGetTime >> (8 * i);
