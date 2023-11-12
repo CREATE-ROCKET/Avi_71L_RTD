@@ -425,6 +425,12 @@ void loop()
         GseCom::makePacket(txPacket, 0x61, &txPayload, 1);
         VALVE_PINOUT::SER_VALVE.write(txPacket, 5);
       }
+
+      if (rxPayload[0] == 0x77)
+      {
+        delay(1000);
+        ESP.restart();
+      }
     }
 
     if (tmpCmdId == 0xF0)
