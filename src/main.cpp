@@ -195,9 +195,10 @@ namespace LOGGING
         flashDataset[flashDatasetIndex++] = imuData[i] & 0xFF;
         flashDataset[flashDatasetIndex++] = imuData[i] >> 8;
       }
-      // loggingIndex == 40の時，lpsの値を追加，開栓率，電圧を追加
+      // loggingIndex == 40の時，lpsの値を追加，開栓率，電圧を追加,flashのデータセットのヘッダを変更
       if (loggingIndex == 40)
       {
+        flashDataset[0] = 0x41; // header
         for (int i = 0; i < 4; i++)
         {
           flashDataset[flashDatasetIndex++] = lpsDataGetTime >> (8 * i);
