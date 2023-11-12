@@ -124,7 +124,7 @@ namespace LOGGING
       if (isDatainWirelessDatasetWaitingSend)
       {
         uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-        nec920.sendTxCmd(0x13, 0x71, dstID, wirelessDatasetWaitingSend, 174);
+        nec920.sendTxCmd(0x13, 0x71, dstID, wirelessDatasetWaitingSend, 170);
         isDatainWirelessDatasetWaitingSend = 0;
       }
 
