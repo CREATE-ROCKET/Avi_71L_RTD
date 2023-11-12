@@ -443,12 +443,16 @@ void loop()
 
     if (tmpCmdId == 0xAA)
     {
-      // read mode
-      for (uint32_t i = 0; i < 0x10010; i++)
+      // check payload
+      if (ValveRxBff.data[3] == 0xAA)
       {
-        uint8_t data[256];
-        flash.read(i << 8, data);
-        VALVE_PINOUT::SER_VALVE.write(data, 256);
+        // read mode
+        for (uint32_t i = 0; i < 0x10010; i++)
+        {
+          uint8_t data[256];
+          flash.read(i << 8, data);
+          VALVE_PINOUT::SER_VALVE.write(data, 256);
+        }
       }
     }
   }
