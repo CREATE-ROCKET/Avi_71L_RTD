@@ -428,8 +428,11 @@ void loop()
 
       if (rxPayload[0] == 0x77)
       {
-        delay(1000);
-        ESP.restart();
+        if (!LOGGING::isLoggingGoing)
+        {
+          delay(1000);
+          ESP.restart();
+        }
       }
     }
 
