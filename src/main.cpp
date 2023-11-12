@@ -32,6 +32,8 @@ namespace RTD_SPI_CONF
   constexpr uint32_t SPIFREQ = 4000000;
 }
 
+uint8_t msgNo = 0x71;
+
 namespace RTD_W_PINOUT
 {
   constexpr uint8_t LED = 14;
@@ -124,7 +126,7 @@ namespace LOGGING
       if (isDatainWirelessDatasetWaitingSend)
       {
         uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-        nec920.sendTxCmd(0x13, 0x71, dstID, wirelessDatasetWaitingSend, 170);
+        nec920.sendTxCmd(0x13, msgNo++, dstID, wirelessDatasetWaitingSend, 170);
         isDatainWirelessDatasetWaitingSend = 0;
       }
 
@@ -442,7 +444,7 @@ void loop()
           }
 
           uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-          nec920.sendTxCmd(0x13, 0x71, dstID, payLoad, 10);
+          nec920.sendTxCmd(0x13, msgNo++, dstID, payLoad, 10);
 
           delay(1000);
           ESP.restart();
@@ -520,7 +522,7 @@ void loop()
           VALVE_PINOUT::SER_VALVE.write(Packet, 14);
 
           uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-          nec920.sendTxCmd(0x13, 0x71, dstID, payLoad, 10);
+          nec920.sendTxCmd(0x13, msgNo++, dstID, payLoad, 10);
         }
         else
         {
@@ -538,7 +540,7 @@ void loop()
           VALVE_PINOUT::SER_VALVE.write(Packet, 14);
 
           uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-          nec920.sendTxCmd(0x13, 0x71, dstID, payLoad, 10);
+          nec920.sendTxCmd(0x13, msgNo++, dstID, payLoad, 10);
         }
       }
     }
