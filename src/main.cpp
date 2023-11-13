@@ -519,7 +519,7 @@ void loop()
             }
           }
           uint8_t Packet[14];
-          GseCom::makePacket(Packet, 0x51, payLoad, 9);
+          GseCom::makePacket(Packet, 0x51, payLoad, 10);
           VALVE_PINOUT::SER_VALVE.write(Packet, 14);
 
           uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
@@ -529,15 +529,12 @@ void loop()
         {
           uint8_t payLoad[10];
           payLoad[0] = 0x50;
-          for (int i = 0; i < 3; i++)
+          for (int i = 1; i < 10; i++)
           {
-            for (int j = 0; j < 3; j++)
-            {
-              payLoad[i * 3 + j + 1] = 0xFF;
-            }
+            payLoad[i] = 0xFF;
           }
           uint8_t Packet[14];
-          GseCom::makePacket(Packet, 0x51, payLoad, 9);
+          GseCom::makePacket(Packet, 0x51, payLoad, 10);
           VALVE_PINOUT::SER_VALVE.write(Packet, 14);
 
           uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
