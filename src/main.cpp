@@ -29,7 +29,7 @@ namespace RTD_SPI_CONF
   constexpr uint8_t CS_PRESSURE = 13;
   constexpr uint8_t CS_FLASH = 32;
   constexpr uint8_t CS_IMU = 25;
-  constexpr uint32_t SPIFREQ = 4000000;
+  constexpr uint32_t SPIFREQ = 5000000;
 }
 
 uint8_t msgNo = 0x71;
