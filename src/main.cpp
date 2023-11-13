@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "LPS25HB.h"
 #include "SPICREATE.h"
-#include "S25FL512S.h"
+#include "SPIflash.h"
 #include "SPI_devices/ICM20602.h"
 #include "NEC920.hpp"
 #include "../RFparam/RTD_PARAM.h"
