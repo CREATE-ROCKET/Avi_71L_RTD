@@ -69,17 +69,17 @@ IRAM_ATTR bool PMBCOM::Get()
     {
         if (Target & PMBCMD_Pb == PMBCMD_Pb)
         {
-            voltage[i] = (int32_t)(PMBSLIP->rx_data[0] << 24 | PMBSLIP->rx_data[1] << 16 | PMBSLIP->rx_data[2] << 8 | PMBSLIP->rx_data[3]);
+            voltage[i] = (int32_t)(PMBSLIP->rx_data[i * 4 + 0] << 24 | PMBSLIP->rx_data[i * 4 + 1] << 16 | PMBSLIP->rx_data[i * 4 + 2] << 8 | PMBSLIP->rx_data[i * 4 + 3]);
             i++;
         }
         if (Target & PMBCMD_Li == PMBCMD_Li)
         {
-            voltage[i] = (int32_t)(PMBSLIP->rx_data[0] << 24 | PMBSLIP->rx_data[1] << 16 | PMBSLIP->rx_data[2] << 8 | PMBSLIP->rx_data[3]);
+            voltage[i] = (int32_t)(PMBSLIP->rx_data[i * 4 + 0] << 24 | PMBSLIP->rx_data[i * 4 + 1] << 16 | PMBSLIP->rx_data[i * 4 + 2] << 8 | PMBSLIP->rx_data[i * 4 + 3]);
             i++;
         }
         if (Target & PMBCMD_AC == PMBCMD_AC)
         {
-            voltage[i] = (int32_t)(PMBSLIP->rx_data[0] << 24 | PMBSLIP->rx_data[1] << 16 | PMBSLIP->rx_data[2] << 8 | PMBSLIP->rx_data[3]);
+            voltage[i] = (int32_t)(PMBSLIP->rx_data[i * 4 + 0] << 24 | PMBSLIP->rx_data[i * 4 + 1] << 16 | PMBSLIP->rx_data[i * 4 + 2] << 8 | PMBSLIP->rx_data[i * 4 + 3]);
             i++;
         }
         element_num = i;
