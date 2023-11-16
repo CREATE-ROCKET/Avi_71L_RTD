@@ -404,10 +404,10 @@ void loop()
         // sleep mode
         if (LOGGING::isLoggingGoing == 1)
         {
+          LOGGING::isLoggingGoing = 0;
           delay(100);
           vTaskDelete(LOGGING::sendWirelessmoduleHandle);
           vTaskDelete(LOGGING::LoggingHandle);
-          LOGGING::isLoggingGoing = 0;
         }
         txPayload = 0x41;
       }
