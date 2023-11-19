@@ -37,6 +37,14 @@ IRAM_ATTR void imu_task(void *arg)
       index = 0;
       ESP_LOGI(TAG, "q: %f, %f, %f, %f", q4.q[0], q4.q[1], q4.q[2], q4.q[3]);
       ESP_LOGI(TAG, "imu: %d, %d, %d, %d, %d, %d", arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]);
+
+      float acc[3];
+      for (int i = 0; i < 3; i++)
+      {
+        acc[i] = (float)arr[i] / 2048;
+      }
+      q4.transform_acceleration(acc, q4.q);
+      ESP_LOGI(TAG, "acc: x:%f, y:%f, z:%f", acc[0], acc[1], acc[2]);
     }
     vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_PERIOD_MS);
   }
