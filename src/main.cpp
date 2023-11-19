@@ -90,6 +90,15 @@ recieve(HardwareSerial &SER, rxBff &rx)
     else if ((rx.index == 1) || (rx.index == 2)) /**cmdidおよびlengthの受信*/
     {
       rx.data[rx.index++] = tmp;
+
+      // lengthが異常値だった場合の処理
+      if (rx.index == 3)
+      {
+        if (rx.data[2] > 14)
+        {
+          rx.index = 0;
+        }
+      }
     }
     else if (rx.index < (rx.data[2] - 1)) /**受信完了1個前までの処理*/
     {
