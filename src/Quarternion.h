@@ -15,7 +15,7 @@ private:
     void q_rot_by_omega(float *q, float *omega, float q_dt);
     float transform_matrix[3][3] = {
         {cosf(1. / 8. * PI), sinf(1. / 8. * PI), 0},
-        {sinf(1. / 8. * PI), cosf(1. / 8. * PI), 0},
+        {-sinf(1. / 8. * PI), cosf(1. / 8. * PI), 0},
         {0, 0, 1}};
 
 public:
