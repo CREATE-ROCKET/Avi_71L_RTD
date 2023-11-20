@@ -11,6 +11,7 @@ SPICREATE::SPICreate spibus;
 ICM imu;
 
 Quarternion q4;
+float accOffset[3] = {-82.313202, 7.249300, 7.942400};
 
 namespace RTD_SPI_CONF
 {
@@ -41,7 +42,7 @@ IRAM_ATTR void imu_task(void *arg)
       float acc[3];
       for (int i = 0; i < 3; i++)
       {
-        acc[i] = (float)arr[i] / 2048;
+        acc[i] = ((float)arr[i] - accOffset[i]) / 2048;
       }
       q4.transform_acceleration(acc, q4.q);
       ESP_LOGI(TAG, "acc: x:%f, y:%f, z:%f", acc[0], acc[1], acc[2]);
@@ -56,7 +57,7 @@ void setup()
   spibus.begin(VSPI, RTD_SPI_CONF::SCK, RTD_SPI_CONF::MISO, RTD_SPI_CONF::MOSI, RTD_SPI_CONF::CS_IMU);
   imu.begin(&spibus, RTD_SPI_CONF::CS_IMU, RTD_SPI_CONF::SPIFREQ);
 
-  q4.Init_by_launcher_inclination(0);
+  q4.Init_by_launcher_inclination(20);
 
   int32_t gyro_drift_raw[3] = {0, 0, 0};
   float gyro_drift[3] = {0, 0, 0};
