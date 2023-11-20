@@ -44,6 +44,8 @@ namespace RTD_W_PINOUT
   constexpr uint8_t pin920Mode = 23;
 }
 
+constexpr uint8_t rtdPayloadLength = 170;
+
 namespace PWR_PINOUT
 {
   HardwareSerial SER_PWR = Serial;
@@ -115,7 +117,7 @@ namespace LOGGING
   uint8_t isFlashErased = 0;  // 1:Erased 0:not Erased
   uint8_t isLoggingGoing = 0; // 1:Going 0:not Going
 
-  uint8_t wirelessDatasetWaitingSend[170];
+  uint8_t wirelessDatasetWaitingSend[rtdPayloadLength];
   uint8_t isDatainWirelessDatasetWaitingSend = 0;
   xTaskHandle sendWirelessmoduleHandle;
 
@@ -127,7 +129,7 @@ namespace LOGGING
       if (isDatainWirelessDatasetWaitingSend)
       {
         uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-        nec920.sendTxCmd(0x13, msgNo++, dstID, wirelessDatasetWaitingSend, 170);
+        nec920.sendTxCmd(0x13, msgNo++, dstID, wirelessDatasetWaitingSend, rtdPayloadLength);
         isDatainWirelessDatasetWaitingSend = 0;
       }
 
@@ -275,7 +277,7 @@ namespace LOGGING
         //   }
         // }
         // -------------------------------------------------無線モジュールへ送信を行え-------------------------------------------------
-        memcpy(wirelessDatasetWaitingSend, wirelessDataset, 170);
+        memcpy(wirelessDatasetWaitingSend, wirelessDataset, rtdPayloadLength);
         isDatainWirelessDatasetWaitingSend = 1;
       }
       // -------------------------------無線機用データ作成終了--------------------------------
@@ -368,7 +370,7 @@ void loop()
       uint8_t rxPayload[2];
       uint8_t rxPayloadLength;
       GseCom::getPayload(ValveRxBff.data, rxPayload, &rxPayloadLength);
-      uint8_t txPacket[5];
+      uint8_t txPacket[6];
       uint8_t txPayload = 0x00;
       if (rxPayload[0] == 0x00)
       {
@@ -456,7 +458,7 @@ void loop()
         }
       }
 
-      if (rxPayload[0] = 0x99)
+      if (rxPayload[0] == 0x99)
       {
         // ランチャ角の受信
         // 受信はx軸からランチャ角，70度がデフォルト
@@ -468,7 +470,7 @@ void loop()
         payLoad[0] = 0x99;
         payLoad[1] = rxPayload[1];
         GseCom::makePacket(txPacket, 0x61, payLoad, 2);
-        VALVE_PINOUT::SER_VALVE.write(txPacket, 5);
+        VALVE_PINOUT::SER_VALVE.write(txPacket, 6);
       }
     }
 
