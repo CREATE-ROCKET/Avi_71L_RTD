@@ -57,7 +57,7 @@ void setup()
   spibus.begin(VSPI, RTD_SPI_CONF::SCK, RTD_SPI_CONF::MISO, RTD_SPI_CONF::MOSI, RTD_SPI_CONF::CS_IMU);
   imu.begin(&spibus, RTD_SPI_CONF::CS_IMU, RTD_SPI_CONF::SPIFREQ);
 
-  q4.Init_by_launcher_inclination(20);
+  q4.Init_by_launcher_inclination(0 / 180. * PI);
 
   int32_t gyro_drift_raw[3] = {0, 0, 0};
   float gyro_drift[3] = {0, 0, 0};
