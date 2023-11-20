@@ -108,8 +108,15 @@ IRAM_ATTR void Quarternion::Calc(int16_t *Sensor_Data, float q_dt)
 
 IRAM_ATTR void Quarternion::transform_acceleration(float *accel, float *_q)
 {
+    // accel * transform_matrix
+    float accel_buf[3];
+    for (uint8_t i = 0; i < 3; i++)
+    {
+        accel_buf[i] = transform_matrix[i][0] * accel[0] + transform_matrix[i][1] * accel[1] + transform_matrix[i][2] * accel[2];
+    }
+
     // 加速度ベクトルをクオータニオンに変換（実部は0）
-    float accel_quat[4] = {0, accel[0], accel[1], accel[2]};
+    float accel_quat[4] = {0, accel_buf[0], accel_buf[1], accel_buf[2]};
 
     // クオータニオンの共役を計算
     float q_conj[4] = {_q[0], -_q[1], -_q[2], -_q[3]};
