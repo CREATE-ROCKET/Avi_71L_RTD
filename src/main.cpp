@@ -306,7 +306,6 @@ namespace LOGGING
 
       if (latestFlashPage >= 0x10000)
       {
-        delay(100);
         LOGGING::isLoggingGoing = 0;
         vTaskDelete(LOGGING::sendWirelessmoduleHandle);
         vTaskDelete(LOGGING::LoggingHandle);
