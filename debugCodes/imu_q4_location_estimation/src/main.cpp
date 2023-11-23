@@ -24,6 +24,9 @@ namespace RTD_SPI_CONF
   constexpr uint32_t SPIFREQ = 5000000;
 };
 
+float velocity[3] = {0, 0, 0};
+float position[3] = {0, 0, 0};
+
 IRAM_ATTR void imu_task(void *arg)
 {
   int16_t arr[6];
@@ -33,19 +36,25 @@ IRAM_ATTR void imu_task(void *arg)
     portTickType xLastWakeTime = xTaskGetTickCount();
     imu.Get(arr);
     q4.Calc(arr, 0.001);
+    float acc[3];
+    for (int i = 0; i < 3; i++)
+    {
+      acc[i] = ((float)arr[i] - accOffset[i]) / 2048 * 9.80665;
+    }
+    q4.transform_acceleration(acc, q4.q);
+    for (int i = 0; i < 3; i++)
+    {
+      velocity[i] += acc[i] * 0.001;
+      position[i] += velocity[i] * 0.001;
+    }
+
     if (++index >= 1000)
     {
       index = 0;
       ESP_LOGI(TAG, "q: %f, %f, %f, %f", q4.q[0], q4.q[1], q4.q[2], q4.q[3]);
       ESP_LOGI(TAG, "imu: %d, %d, %d, %d, %d, %d", arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]);
-
-      float acc[3];
-      for (int i = 0; i < 3; i++)
-      {
-        acc[i] = ((float)arr[i] - accOffset[i]) / 2048;
-      }
-      q4.transform_acceleration(acc, q4.q);
-      ESP_LOGI(TAG, "acc: x:%f, y:%f, z:%f", acc[0], acc[1], acc[2]);
+      ESP_LOGI(TAG, "acc: %f, %f, %f", acc[0], acc[1], acc[2]);
+      ESP_LOGI(TAG, "pos: x:%f, y:%f, z:%f", position[0], position[1], position[2]);
     }
     vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_PERIOD_MS);
   }
