@@ -44,6 +44,8 @@ namespace RTD_W_PINOUT
   constexpr uint8_t pin920Mode = 23;
 }
 
+constexpr uint8_t rtdPayloadLength = 170;
+
 namespace PWR_PINOUT
 {
   HardwareSerial SER_PWR = Serial;
@@ -71,6 +73,7 @@ PMBCOM pmb;
 SLIP slip;
 
 Quarternion q4;
+int16_t launch_inclination = -20; // 天頂からx軸方向の回転が負 deg
 
 /** 受信用関数，パケット受信完了したらtrueを返す*/
 IRAM_ATTR bool
@@ -123,7 +126,7 @@ namespace LOGGING
   uint8_t isFlashErased = 0;  // 1:Erased 0:not Erased
   uint8_t isLoggingGoing = 0; // 1:Going 0:not Going
 
-  uint8_t wirelessDatasetWaitingSend[170];
+  uint8_t wirelessDatasetWaitingSend[rtdPayloadLength];
   uint8_t isDatainWirelessDatasetWaitingSend = 0;
   xTaskHandle sendWirelessmoduleHandle;
 
@@ -135,7 +138,7 @@ namespace LOGGING
       if (isDatainWirelessDatasetWaitingSend)
       {
         uint8_t dstID[4] = {rtdRFparam::DST_1, rtdRFparam::DST_2, rtdRFparam::DST_3, rtdRFparam::DST_4};
-        nec920.sendTxCmd(0x13, msgNo++, dstID, wirelessDatasetWaitingSend, 170);
+        nec920.sendTxCmd(0x13, msgNo++, dstID, wirelessDatasetWaitingSend, rtdPayloadLength);
         isDatainWirelessDatasetWaitingSend = 0;
       }
 
@@ -165,7 +168,7 @@ namespace LOGGING
       int16_t imuData[6];
       uint32_t imuDataGetTime = micros();
       imu.Get(imuData);
-      q4.Calc(imuData);
+      q4.Calc(imuData, 0.001);
 
       // loggingIndex == 38の時，lpsの値を取得
       if (loggingIndex == 38)
@@ -283,7 +286,7 @@ namespace LOGGING
         //   }
         // }
         // -------------------------------------------------無線モジュールへ送信を行え-------------------------------------------------
-        memcpy(wirelessDatasetWaitingSend, wirelessDataset, 170);
+        memcpy(wirelessDatasetWaitingSend, wirelessDataset, rtdPayloadLength);
         isDatainWirelessDatasetWaitingSend = 1;
       }
       // -------------------------------無線機用データ作成終了--------------------------------
@@ -312,7 +315,6 @@ namespace LOGGING
 
       if (latestFlashPage >= 0x10000)
       {
-        delay(100);
         LOGGING::isLoggingGoing = 0;
         vTaskDelete(LOGGING::sendWirelessmoduleHandle);
         vTaskDelete(LOGGING::LoggingHandle);
@@ -373,18 +375,21 @@ void loop()
 
     if (tmpCmdId == 0x61)
     {
-      uint8_t rxPayload[1];
+      uint8_t rxPayload[2];
       uint8_t rxPayloadLength;
       GseCom::getPayload(ValveRxBff.data, rxPayload, &rxPayloadLength);
-      uint8_t txPacket[5];
+      uint8_t txPacket[6];
       uint8_t txPayload = 0x00;
       if (rxPayload[0] == 0x00)
       {
         // flight mode
         if (LOGGING::isLoggingGoing == 0)
         {
-          // quaternion初期化
-          q4.Init(1, 0, 0, 0, 0.001);
+          // // quaternion初期化
+          // q4.Init(1, 0, 0, 0, 0.001);
+          // ランチャの傾きを考慮した初期化
+          // 初期は-45deg よく飛びそう
+          q4.Init_by_launcher_inclination((float)launch_inclination / 180. * PI);
           int32_t gyro_drift_raw[3] = {0, 0, 0};
           float gyro_drift[3] = {0, 0, 0};
           for (int i = 0; i < 1000; i++)
@@ -459,6 +464,21 @@ void loop()
           delay(1000);
           ESP.restart();
         }
+      }
+
+      if (rxPayload[0] == 0x99)
+      {
+        // ランチャ角の受信
+        // 受信はx軸からランチャ角，70度がデフォルト
+        // 43 61 06 99 [deg] [CRC]
+        launch_inclination = -(90 - rxPayload[1]);
+
+        // そのまま返送
+        uint8_t payLoad[2];
+        payLoad[0] = 0x99;
+        payLoad[1] = rxPayload[1];
+        GseCom::makePacket(txPacket, 0x61, payLoad, 2);
+        VALVE_PINOUT::SER_VALVE.write(txPacket, 6);
       }
     }
 
